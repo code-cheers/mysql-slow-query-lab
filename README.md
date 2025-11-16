@@ -1,6 +1,6 @@
 # MySQL Slow Query Lab
 
-这个实验项目提供了一个可重复的 MySQL 慢查询环境：
+项目提供了一个可重复的 MySQL 慢查询环境：
 
 - 使用 `docker-compose` 启动启用了慢查询日志的 MySQL 8.0。
 - Golang 程序（基于 GORM）一次性写入 100 万条以上的订单数据。
@@ -48,7 +48,6 @@ make seed ARGS="-orders 1500000 -batch 2000"
 5. **索引回表查询**：`SELECT * FROM orders WHERE customer_id = 100`，命中二级索引但仍需回表读取完整行（预设 100 万条热点订单），bookmark lookup 成本高。
 6. **覆盖索引查询**：`SELECT customer_id FROM orders WHERE customer_id = 100`，只读索引覆盖的字段，避免回表，可与上一场景对比 `Explain`/`rows`/`Extra`。
 
-> 为了放大差异，程序会在 `created_at = 2024-01-01` 附近插入约 2 千条订单，并额外构造 100 万条 `customer_id = 100` 的热点订单。首次运行时可能需要更多时间来填充这些数据。
 
 ### Makefile 快捷命令
 
