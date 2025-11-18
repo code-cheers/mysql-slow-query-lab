@@ -3,17 +3,17 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"log"
 	"os"
-	"strings"
-	"text/tabwriter"
 	"time"
 	"unicode/utf8"
 
 	"mysql-slow-query-lab/internal/data"
 	"mysql-slow-query-lab/internal/db"
 
+	"github.com/olekukonko/tablewriter"
+	"github.com/olekukonko/tablewriter/renderer"
+	"github.com/olekukonko/tablewriter/tw"
 	"gorm.io/gorm"
 )
 
@@ -96,16 +96,25 @@ func logDatasetStats(ctx context.Context, gdb *gorm.DB) error {
 }
 
 func printResultsTable(results []data.ScenarioResult) {
-	tw := tabwriter.NewWriter(os.Stdout, 2, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "类型\t子序号\t场景\t说明(截断)\t耗时\t行数\t状态")
+	table := tablewriter.NewTable(os.Stdout,
+		tablewriter.WithRenderer(renderer.NewBlueprint(tw.Rendition{
+			Settings: tw.Settings{Separators: tw.Separators{BetweenRows: tw.On}},
+		})),
+		tablewriter.WithConfig(tablewriter.Config{
+			Header: tw.CellConfig{Alignment: tw.CellAlignment{Global: tw.AlignCenter}},
+			Row: tw.CellConfig{
+				Merging:   tw.CellMerging{Mode: tw.MergeHierarchical},
+				Alignment: tw.CellAlignment{Global: tw.AlignLeft},
+			},
+		}),
+	)
+	table.Header([]string{"类型", "子序号", "场景", "说明(截断)", "耗时", "行数", "状态"})
 	currentType := ""
 	typeCounter := 0
 	for _, res := range results {
 		if res.Type != "" && res.Type != currentType {
 			currentType = res.Type
 			typeCounter = 0
-			fmt.Fprintf(tw, "%s\t\t\t\t\t\t\n", strings.Repeat("═", utf8.RuneCountInString(currentType)+6))
-			fmt.Fprintf(tw, "%s\t\t\t\t\t\t\n", currentType)
 		}
 		typeCounter++
 		status := "OK"
@@ -113,15 +122,15 @@ func printResultsTable(results []data.ScenarioResult) {
 			status = "ERR: " + res.Err.Error()
 		}
 		desc := truncateText(res.Description, 40)
-		fmt.Fprintf(tw, "\t%2d\t%-16s\t%-40s\t%12s\t%10d\t%s\n", typeCounter, res.Name, desc, res.Duration, res.RowCount, status)
-		fmt.Fprintf(tw, "\t\t%s\t%s\t%s\t%s\t%s\n",
-			strings.Repeat("─", 16),
-			strings.Repeat("─", 40),
-			strings.Repeat("─", 12),
-			strings.Repeat("─", 10),
-			strings.Repeat("─", len(status)))
+		err := table.Append([]any{res.Type, typeCounter, res.Name, desc, res.Duration, res.RowCount, status})
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
-	tw.Flush()
+	err := table.Render()
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func truncateText(s string, limit int) string {
